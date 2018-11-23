@@ -38,119 +38,119 @@ using UnityEngine;
 
 public abstract class SequencerBase : MonoBehaviour
 {
-    #region Fields
+  #region Fields
 
-    /// <summary>
-    /// Fired when Initialization is finished and module is ready to play.
-    /// </summary>
-    public Action OnReadyEvent;
+  /// <summary>
+  /// Fired when Initialization is finished and module is ready to play.
+  /// </summary>
+  public Action OnReadyEvent;
 
-    #endregion
+  #endregion
 
-    #region Properties
+  #region Properties
 
-    /// <summary>
-    /// Is playing.
-    /// </summary>
-    public bool IsPlaying
-    {
-        get { return _isPlaying; }
-        protected set { _isPlaying = value; }
-    }
+  /// <summary>
+  /// Is playing.
+  /// </summary>
+  public bool IsPlaying
+  {
+    get { return _isPlaying; }
+    protected set { _isPlaying = value; }
+  }
 
-    /// <summary>
-    /// True if clip data is loaded.
-    /// </summary>
-    public virtual bool IsReady
-    {
-        get { return false; }
-    }
+  /// <summary>
+  /// True if clip data is loaded.
+  /// </summary>
+  public virtual bool IsReady
+  {
+    get { return false; }
+  }
 
-    #endregion
+  #endregion
 
-    #region Enumerations
+  #region Enumerations
 
-    #endregion
+  #endregion
 
-    #region Variables
+  #region Variables
 
-    /// <summary>
-    /// Should the sequencer start playing automatically on Awake.
-    /// </summary>
-    public bool playWhenReady;
+  /// <summary>
+  /// Should the sequencer start playing automatically on Awake.
+  /// </summary>
+  public bool playWhenReady;
 
-    /// <summary>
-    /// Beats per minute. Use SetBpm to change Bpm programmatically.
-    /// </summary>
-    public int bpm;
+  /// <summary>
+  /// Beats per minute. Use SetBpm to change Bpm programmatically.
+  /// </summary>
+  public int bpm;
 
-    /// <summary>
-    /// Print logs.
-    /// </summary>
-    public bool log;
 
-    /// <summary>
-    /// Is sequencer muted or not. Sequncer will continue counting steps. Use SetMuted or ToggleMute to change Bpm programmatically.
-    /// </summary>
-    public bool isMuted;
+  /// <summary>
+  /// Print logs.
+  /// </summary>
+  public bool log;
 
-    /// <summary>
-    /// Is playing. 
-    /// </summary>
-    protected bool _isPlaying;
+  /// <summary>
+  /// Is sequencer muted or not. Sequncer will continue counting steps. Use SetMuted or ToggleMute to change Bpm programmatically.
+  /// </summary>
+  public bool isMuted;
 
-    #endregion
+  /// <summary>
+  /// Is playing. 
+  /// </summary>
+  protected bool _isPlaying;
 
-    #region Methods
+  #endregion
 
-    private void Awake()
-    {
-        OnAwake();
-    }
+  #region Methods
 
-    /// <summary>
-    /// Called when Initialization is finished and module is ready to play.
-    /// </summary>
-    protected virtual void OnReady()
-    {
-        if (OnReadyEvent != null) OnReadyEvent();
-    }
+  private void Awake()
+  {
+    OnAwake();
+  }
 
-    public abstract void OnAwake();
+  /// <summary>
+  /// Called when Initialization is finished and module is ready to play.
+  /// </summary>
+  protected virtual void OnReady()
+  {
+    if (OnReadyEvent != null) OnReadyEvent();
+  }
 
-    public abstract void Play();
+  public abstract void OnAwake();
 
-    public abstract void Play(double newPercentage);
+  public abstract void Play();
 
-    public abstract void Play(float fadeDuration);
+  public abstract void Play(double newPercentage);
 
-    public abstract void Stop();
+  public abstract void Play(float fadeDuration);
 
-    public abstract void Stop(float fadeDuration);
+  public abstract void Stop();
 
-    public abstract void SetBpm(int newBpm);
+  public abstract void Stop(float fadeDuration);
 
-    public abstract void SetPercentage(double newPercentage);
+  public abstract void SetBpm(int newBpm);
+  public abstract void SetPercentage(double newPercentage);
 
-    public abstract void Pause(bool isPaused);
+  public abstract void Pause(bool isPaused);
 
-    public abstract void Pause(bool isPaused, float fadeDuration);
+  public abstract void Pause(bool isPaused, float fadeDuration);
 
-    public abstract void Mute(bool isMuted);
+  public abstract void Mute(bool isMuted);
 
-    public abstract void Mute(bool isMuted, float fadeDuration);
+  public abstract void Mute(bool isMuted, float fadeDuration);
 
-    public abstract void SetFadeDurations(float fadeIn, float fadeOut);
+  public abstract void SetFadeDurations(float fadeIn, float fadeOut);
 
-    public abstract void ToggleMute();
+  public abstract void ToggleMute();
 
-    #endregion
+  #endregion
 
-    #region Structs
+  #region Structs
 
-    #endregion
+  #endregion
 
-    #region Classes
+  #region Classes
 
-    #endregion
+  #endregion
 }

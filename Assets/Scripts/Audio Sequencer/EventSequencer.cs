@@ -1,4 +1,4 @@
-﻿#region Author
+#region Author
 
 /************************************************************************************************************
 Author: Nidre (Erdin Kacan)
@@ -37,19 +37,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 #if UNITY_EDITOR
 using UnityEditor;
 
 #endif
 
-[RequireComponent(typeof(AudioSource)), RequireComponent(typeof(Sequence))]
-internal class Sequencer : SequencerBase
+[RequireComponent(typeof(AudioSource))]
+internal class EventSequencer : SequencerBase
 {
-  #region Delegates
 
-  public delegate void OnStep(int currentBeat, int numberOfBeats);
-
-  #endregion
 
   #region FadeTarget enum
 
@@ -66,10 +63,6 @@ internal class Sequencer : SequencerBase
     UnPause = (1 << 5)
   }
 
-  public int startingBarAndBeat = 0;
-  public int endingBarAndBeat = Int32.MaxValue;
-
-
   #endregion
 
   #endregion
@@ -79,12 +72,13 @@ internal class Sequencer : SequencerBase
   /// <summary>
   /// Event to be fired on every step.
   /// </summary>
-  public OnStep onAnyStep;
+  public EventSequencerListener onAnyStep;// = new EventSequencerListenerContainer();
 
   /// <summary>
   /// Event to be fired on non-empty steps.
-  /// </summary>
-  public OnStep onBeat;
+  /// </summary>  
+
+  public EventSequencerListener onBeat;// = new EventSequencerListenerContainer();
 
   #endregion
 
@@ -95,7 +89,7 @@ internal class Sequencer : SequencerBase
   /// </summary>
   public override bool IsReady
   {
-    get { return _clipData != null; }
+    get { return true; }
   }
 
   /// <summary>
@@ -104,6 +98,7 @@ internal class Sequencer : SequencerBase
   public int CurrentStep
   {
     get { return _sequence.CurrentStep; }
+    set { _sequence.CurrentStep = value; }
   }
 
   /// <summary>
@@ -116,61 +111,7 @@ internal class Sequencer : SequencerBase
 
   #endregion
 
-  #region Nested type: BackBuffer
 
-  #region Structs
-
-  public class BackBuffer
-  {
-    #region Fields
-
-    /// <summary>
-    /// Data to be backbuffered
-    /// </summary>
-    public float[] data;
-
-    /// <summary>
-    /// Current index of data.
-    /// </summary>
-    public int index;
-
-    #endregion
-
-    #region Other Members
-
-    public BackBuffer()
-    {
-    }
-
-    public BackBuffer(float[] data)
-    {
-      this.data = data;
-      index = 0;
-    }
-
-    public void SetData(float[] data)
-    {
-      this.data = data;
-      index = 0;
-    }
-
-    public void ClearData()
-    {
-      data = null;
-      index = 0;
-    }
-
-    public static implicit operator bool(BackBuffer bb)
-    {
-      return !ReferenceEquals(bb, null);
-    }
-
-    #endregion
-  }
-
-  #endregion
-
-  #endregion
 
   #region Variables
 
@@ -184,29 +125,17 @@ internal class Sequencer : SequencerBase
   /// </summary>
   private Queue<Action> _onAnyStepEventQueue;
 
-  /// <summary>
-  /// Audio clip to be played by this sequencer.
-  /// </summary>
-  public AudioClip clip;
+  [Range(0, 1f)]
+  [SerializeField]
+  private float baseVolume;
+
 
   /// <summary>
   /// Sequence of steps.
   /// True = Play
   /// False = Silent
   /// </summary>
-  public Sequence _sequence;
-
-  /// <summary>
-  /// Maximum back buffer allowed.
-  /// </summary>
-  [Range(0, 100)]
-  public int maxBackBufferSize = 0;
-
-  /// <summary>
-  /// Enlarge backbuffer count by number specified.
-  /// </summary>
-  [Range(0, 100)]
-  public int increaseBackBufferBy = 0;
+  private Sequence _sequence;
 
   /// <summary>
   /// Fade in duration from muted to unmuted.
@@ -226,10 +155,14 @@ internal class Sequencer : SequencerBase
   [BitMask]
   public FadeTarget fadeWhen;
 
+
   /// <summary>
   /// Time of next tick.
   /// </summary>
   private double _nextTick;
+
+  private float _volume;
+
 
   /// <summary>
   /// Sample rate.
@@ -240,16 +173,6 @@ internal class Sequencer : SequencerBase
   /// Current index of clip data.
   /// </summary>
   private int _index;
-
-  /// <summary>
-  /// Clip data.
-  /// </summary>
-  private float[] _clipData;
-
-  /// <summary>
-  /// List of backbuffers.
-  /// </summary>
-  private List<BackBuffer> _activeBackBuffers;
 
   /// <summary>
   /// Remaining beat events to be fired.
@@ -306,16 +229,6 @@ internal class Sequencer : SequencerBase
   /// </summary>
   private AudioSource _audioSource;
 
-  /// <summary>
-  /// Number of channels the audio clip has.
-  /// </summary>
-  private int _clipChannels;
-
-  /// <summary>
-  /// Re-use BackBuffer's instead of creating a new one everytime we need it.
-  /// </summary>
-  private List<BackBuffer> _backBufferPool;
-
   #endregion
 
   #region Methods
@@ -336,47 +249,20 @@ internal class Sequencer : SequencerBase
   private IEnumerator Init()
   {
     _audioSource = GetComponent<AudioSource>();
-    _sequence = GetComponent<Sequence>();
-    _initialVolumeValue = _audioSource.volume;
+    _initialVolumeValue = baseVolume;
     _volumeAfterFade = _initialVolumeValue;
     _sampleRate = AudioSettings.outputSampleRate;
-    _audioSource.volume = 0;
-    if (clip == null)
+    _volume = 0;
+    _sequence = GetComponent<Sequence>();
+
+    if (playWhenReady)
     {
-      clip = _audioSource.clip;
+      Play();
     }
-    if (clip != null)
-    {
-      while (_clipData == null)
-      {
-        if (clip.loadState == AudioDataLoadState.Loaded)
-        {
-          _clipChannels = clip.channels;
-          _clipData = new float[clip.samples * _clipChannels];
-          clip.GetData(_clipData, 0);
-        }
-        yield return null;
-      }
-      if (playWhenReady)
-      {
-        Play();
-      }
-      OnReady();
-    }
-    else Debug.LogWarning("Audio Clip can not be null.");
+    OnReady();
+    yield break;
   }
 
-  public void SetAudioClip(AudioClip newClip)
-  {
-    clip = newClip;
-    if (clip != null)
-    {
-      _clipChannels = clip.channels;
-      _clipData = new float[clip.samples * _clipChannels];
-      clip.GetData(_clipData, 0);
-    }
-    else _clipData = null;
-  }
 
   /// <summary>
   /// Set mute state.
@@ -406,7 +292,7 @@ internal class Sequencer : SequencerBase
     }
     else
     {
-      _audioSource.volume = isMuted ? 0 : _initialVolumeValue;
+      _volume = isMuted ? 0 : _initialVolumeValue;
       _fadeProgress = 1;
       MuteInternal(isMuted);
     }
@@ -463,7 +349,7 @@ internal class Sequencer : SequencerBase
     }
     else
     {
-      _audioSource.volume = isMuted ? 0 : _initialVolumeValue;
+      _volume = isMuted ? 0 : _initialVolumeValue;
       _fadeProgress = 1;
       PlayInternal();
     }
@@ -472,12 +358,6 @@ internal class Sequencer : SequencerBase
   private void PlayInternal()
   {
     _nextTick = AudioSettings.dspTime * _sampleRate;
-    if (_clipData == null)
-    {
-      _clipChannels = clip.channels;
-      _clipData = new float[clip.samples * _clipChannels];
-      clip.GetData(_clipData, 0);
-    }
     _audioSource.Play();
     _isPlaying = true;
   }
@@ -503,7 +383,7 @@ internal class Sequencer : SequencerBase
     }
     else
     {
-      _audioSource.volume = isMuted ? 0 : _initialVolumeValue;
+      _volume = isMuted ? 0 : _initialVolumeValue;
       _fadeProgress = 1;
       StopInternal();
     }
@@ -513,14 +393,8 @@ internal class Sequencer : SequencerBase
   {
     _isPlaying = false;
     _audioSource.Stop();
-    _clipData = null;
     _index = 0;
     _sequence.CurrentStep = 0;
-    if (_activeBackBuffers != null)
-    {
-      _activeBackBuffers.Clear();
-      _activeBackBuffers = null;
-    }
   }
 
   /// <summary>
@@ -552,7 +426,7 @@ internal class Sequencer : SequencerBase
     }
     else
     {
-      _audioSource.volume = isMuted ? 0 : _initialVolumeValue;
+      _volume = isMuted ? 0 : _initialVolumeValue;
       _fadeProgress = 1;
       PauseInternal(isPaused);
     }
@@ -585,7 +459,7 @@ internal class Sequencer : SequencerBase
     _fadeSpeed = 1f / duration;
     _fadeProgress = 0;
     MuteInternal(false);
-    _volumeBeforeFade = _audioSource.volume;
+    _volumeBeforeFade = _volume;
     _volumeAfterFade = _initialVolumeValue;
   }
 
@@ -593,7 +467,7 @@ internal class Sequencer : SequencerBase
   {
     _fadeSpeed = 1f / duration;
     _fadeProgress = 0;
-    _volumeBeforeFade = _audioSource.volume;
+    _volumeBeforeFade = _volume;
     _volumeAfterFade = 0;
   }
 
@@ -623,14 +497,12 @@ internal class Sequencer : SequencerBase
   private void UpdatePercentage()
   {
     _index = 0;
-    if (_activeBackBuffers != null) _activeBackBuffers.Clear();
-
     double samplesTotal = _sampleRate * 60.0F / bpm * 4.0F;
     double samplesPerTick = samplesTotal / NumberOfSteps;
     double newSamplePos = samplesTotal * _newPercentage;
     double currentTickDouble = newSamplePos / samplesPerTick;
     _sequence.CurrentStep = (int)Math.Round(currentTickDouble, MidpointRounding.ToEven);
-    if (log) print("Set Percentage: " + _sequence.CurrentStep + " (%" + _newPercentage + ")");
+    if (log) print("Set Percentage: " + CurrentStep + " (%" + _newPercentage + ")");
     _newPercentage = -1;
   }
 
@@ -654,7 +526,7 @@ internal class Sequencer : SequencerBase
     {
       _fadeProgress += Time.deltaTime * _fadeSpeed;
       if (_fadeProgress > 1) _fadeProgress = 1;
-      _audioSource.volume = Mathf.Lerp(_volumeBeforeFade, _volumeAfterFade, _fadeProgress);
+      _volume = Mathf.Lerp(_volumeBeforeFade, _volumeAfterFade, _fadeProgress);
       if (_fadeProgress == 1)
       {
         switch (_fadeTarget)
@@ -700,209 +572,79 @@ internal class Sequencer : SequencerBase
       UpdatePercentage();
       return;
     }
-
-    if (isMuted)
+    int dataLeft = bufferData.Length;
+    while (dataLeft > 0)
     {
-      int dataLeft = bufferData.Length;
-      while (dataLeft > 0)
+      double newSample = sample + dataLeft;
+      if (_nextTick < newSample)
       {
-        double newSample = sample + dataLeft;
-        if (_nextTick < newSample)
+        dataLeft = (int)(newSample - _nextTick);
+        _nextTick += samplesPerTick;
+        if (++CurrentStep > NumberOfSteps)
         {
-          dataLeft = (int)(newSample - _nextTick);
-          _nextTick += samplesPerTick;
-          if (++_sequence.CurrentStep > NumberOfSteps) _sequence.CurrentStep = 1;
-          _progress = _sequence.CurrentStep * samplesPerTick;
-          if (_sequence[_sequence.CurrentStep - 1])
-          {
-            _index = 0;
-            if (onBeat != null) _fireBeatEvent++;
-          }
-          else
-          {
-            _index = -1;
-          }
-          if (onAnyStep != null) _fireAnyStepEvent++;
+          CurrentStep = 1;
         }
-        else break;
-      }
-    }
-    else
-    {
-      for (int dataIndex = 0; dataIndex < bufferData.Length / bufferChannels; dataIndex++)
-      {
-        if (_activeBackBuffers != null)
+        _progress = CurrentStep * samplesPerTick;
+
+        if (_sequence[CurrentStep - 1])
         {
-          for (int backBufferIndex = 0; backBufferIndex < _activeBackBuffers.Count; backBufferIndex++)
+          _index = 0;
+          if (onBeat != null)
           {
-            BackBuffer bb = _activeBackBuffers[backBufferIndex];
-
-            int clipChannel = 0;
-            int sourceChannel = 0;
-            while (sourceChannel < bufferChannels)
-            {
-              bufferData[dataIndex * bufferChannels + sourceChannel] +=
-                  bb.data[bb.index * _clipChannels + clipChannel];
-
-              sourceChannel++;
-              clipChannel++;
-              if (clipChannel == _clipChannels - 1) clipChannel = 0;
-            }
-
-            bb.index++;
-            if (bb.index >= bb.data.Length / bufferChannels)
-            {
-              ReleaseBackBuffer(backBufferIndex);
-              backBufferIndex--;
-              if (log) print("BackBuffer recycled. Total: " + _activeBackBuffers.Count);
-            }
-          }
-        }
-
-        if (_index != -1)
-        {
-          int clipChannel = 0;
-          int sourceChannel = 0;
-          while (sourceChannel < bufferChannels)
-          {
-            bufferData[dataIndex * bufferChannels + sourceChannel] +=
-                _clipData[_index * _clipChannels + clipChannel];
-
-            sourceChannel++;
-            clipChannel++;
-            if (clipChannel == _clipChannels - 1) clipChannel = 0;
-          }
-
-          _index++;
-          if (_index >= _clipData.Length / _clipChannels)
-          {
-            _index = -1;
-          }
-        }
-
-        _progress = _sequence.CurrentStep * samplesPerTick + dataIndex;
-
-        if (sample + dataIndex >= _nextTick)
-        {
-          //Refactored to increase readability.
-          AddToBackBuffer(bufferChannels);
-
-          _nextTick += samplesPerTick;
-          if (++_sequence.CurrentStep > NumberOfSteps)
-          {
-            _sequence.CurrentStep = 1;
-          }
-          _progress = _sequence.CurrentStep * samplesPerTick;
-          if (_sequence[_sequence.CurrentStep - 1])
-          {
-            _index = 0;
-            if (onBeat != null)
+            if (!isMuted)
             {
               if (_onBeatEventQueue == null) _onBeatEventQueue = new Queue<Action>();
-              _onBeatEventQueue.Enqueue(() => onBeat(_sequence.CurrentStep, NumberOfSteps));
+              float volume = _volume;
+              _onBeatEventQueue.Enqueue(() =>
+              {
+                onBeat.Invoke(CurrentStep, NumberOfSteps, volume);
+              });
             }
+            else
+            {
+              _index = 0;
+              _fireBeatEvent++;
+            }
+          }
+        }
+        else
+        {
+          _index = -1;
+        }
+
+
+        if (onAnyStep != null)
+        {
+          if (!isMuted)
+          {
+            if (_onAnyStepEventQueue == null) _onAnyStepEventQueue = new Queue<Action>();
+            float volume = _volume;
+            _onAnyStepEventQueue.Enqueue(() =>
+            {
+              onAnyStep.Invoke(CurrentStep, NumberOfSteps, volume);
+            });
           }
           else
           {
-            _index = -1;
-          }
-          if (onAnyStep != null)
-          {
-            if (_onAnyStepEventQueue == null) _onAnyStepEventQueue = new Queue<Action>();
-            _onAnyStepEventQueue.Enqueue(() => onAnyStep(_sequence.CurrentStep, NumberOfSteps));
-          }
-          if (log) Debug.Log("Tick: " + _sequence.CurrentStep + " (%" + GetPercentage() + ")");
-        }
-      }
-    }
-  }
-
-  /// <summary>
-  /// Add remaining audio data to back buffer to be played in next audio thread cycles.
-  /// </summary>
-  private void AddToBackBuffer(int channels)
-  {
-    if (maxBackBufferSize > 0)
-    {
-      if (_index != -1 && _index < _clipData.Length)
-      {
-        float[] newBackBuffer = new float[_clipData.Length - _index];
-        for (int i = _index; i < _clipData.Length / _clipChannels; i++)
-        {
-          int clipChannel = 0;
-          while (clipChannel < _clipChannels)
-          {
-            newBackBuffer[(i - _index) * _clipChannels + clipChannel] =
-                _clipData[i * _clipChannels + clipChannel];
-            clipChannel++;
+            _fireAnyStepEvent++;
           }
         }
-        BackBuffer bb = BackBufferFactory();
-        if (bb)
-        {
-          bb.SetData(newBackBuffer);
-          if (log)
-            print("New BackBuffer[" + newBackBuffer.Length + "] added. Total: " +
-                _activeBackBuffers.Count + "/" + _activeBackBuffers.Capacity);
-        }
-      }
-    }
-  }
 
-  BackBuffer BackBufferFactory()
-  {
-    BackBuffer bb = null;
-
-    if (_activeBackBuffers == null && maxBackBufferSize > 0 && increaseBackBufferBy > 0)
-      _activeBackBuffers = new List<BackBuffer>(increaseBackBufferBy);
-    if (_activeBackBuffers != null && _activeBackBuffers.Count < maxBackBufferSize)
-    {
-      if (_activeBackBuffers.Count == _activeBackBuffers.Capacity)
-      {
-        int newCap = _activeBackBuffers.Capacity + increaseBackBufferBy;
-        if (newCap > maxBackBufferSize) newCap = maxBackBufferSize;
-        _activeBackBuffers.Capacity = newCap;
-      }
-
-      if (_backBufferPool != null && _backBufferPool.Count > 0)
-      {
-        bb = _backBufferPool[0];
-        _backBufferPool.RemoveAt(0);
       }
       else
       {
-        bb = new BackBuffer();
+        break;
       }
-
-      _activeBackBuffers.Add(bb);
     }
-
-    return bb;
   }
 
-  void ReleaseBackBuffer(int bbIndex)
-  {
-    BackBuffer bb = _activeBackBuffers[bbIndex];
-    _activeBackBuffers.RemoveAt(bbIndex);
-    bb.ClearData();
-
-    if (_backBufferPool == null) _backBufferPool = new List<BackBuffer>();
-    _backBufferPool.Add(bb);
-  }
-
-  void ReleaseBackBuffer(BackBuffer bb)
-  {
-    _activeBackBuffers.Remove(bb);
-    bb.ClearData();
-
-    if (_backBufferPool == null) _backBufferPool = new List<BackBuffer>();
-    _backBufferPool.Add(bb);
-  }
 
 #if UNITY_EDITOR
 
   private bool _isMutedOld;
   private int _oldBpm;
+  private int _oldBeatsPerBar;
+
   /// <summary>
   /// Check and update when options are changed from editor.
   /// </summary>
@@ -923,14 +665,14 @@ internal class Sequencer : SequencerBase
     }
   }
 
-  [MenuItem("GameObject/Sequencer/Sequencer", false, 10)]
+  [MenuItem("GameObject/Sequencer/Event Sequencer", false, 10)]
   static void CreateSequencerController(MenuCommand menuCommand)
   {
     // Create a custom game object
-    GameObject go = new GameObject("Sequencer");
+    GameObject go = new GameObject("EventSequencer");
     go.AddComponent<AudioSource>().playOnAwake = false;
     go.AddComponent<Sequence>();
-    go.AddComponent<Sequencer>();
+    go.AddComponent<EventSequencer>();
     GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
     // Register the creation in the undo system
     Undo.RegisterCreatedObjectUndo(go, "Create " + go.name);

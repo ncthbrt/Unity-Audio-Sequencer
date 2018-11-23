@@ -42,308 +42,312 @@ using UnityEditor;
 
 internal class SequencerDriver : SequencerBase
 {
-    #region Fields
+  #region Fields
 
-    #region Variables
+  #region Variables
 
-    /// <summary>
-    /// Array of sequencers to be managed.
-    /// </summary>
-    public SequencerBase[] sequencers;
+  /// <summary>
+  /// Array of sequencers to be managed.
+  /// </summary>
+  public SequencerBase[] sequencers;
 
-    #endregion
+  #endregion
 
-    #endregion
+  #endregion
 
-    #region Properties
+  #region Properties
 
-    /// <summary>
-    /// True if all connected sequencers has loaded their clips.
-    /// </summary>
-    public override bool IsReady
+  /// <summary>
+  /// True if all connected sequencers has loaded their clips.
+  /// </summary>
+  public override bool IsReady
+  {
+    get
     {
-        get
-        {
-            if (sequencers == null) return false;
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                if (!sequencers[i].IsReady) return false;
-            }
-            return true;
-        }
+      if (sequencers == null) return false;
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        if (!sequencers[i].IsReady) return false;
+      }
+      return true;
+    }
+  }
+
+  #endregion
+
+  #region Enumerations
+
+  #endregion
+
+  #region Methods
+
+  public override void OnAwake()
+  {
+#if UNITY_EDITOR
+    _isMutedOld = isMuted;
+    _oldBpm = bpm;
+#endif
+    StartCoroutine(Init());
+  }
+
+  /// <summary>
+  /// Wait until all connected sequencers are ready.
+  /// </summary>
+  /// <returns></returns>
+  private IEnumerator Init()
+  {
+    while (!IsReady) yield return null;
+    if (playWhenReady)
+    {
+      Play();
+    }
+    OnReady();
+  }
+
+  /// <summary>
+  /// Play all connected sequencers.
+  /// </summary>
+  public override void Play()
+  {
+    if (!IsPlaying)
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].bpm = bpm;
+        sequencers[i].Play();
+      }
+      IsPlaying = true;
+    }
+  }
+
+  /// <summary>
+  /// Play all connected sequencers from specified percentage.
+  /// </summary>
+  /// <param name="perc">Approximate percentage.</param>
+  public override void Play(double perc)
+  {
+    SetPercentage(perc);
+    Play();
+  }
+
+  /// <summary>
+  /// Play all connected sequencers. 
+  /// </summary>
+  /// <param name="fadeDuration"></param>
+  public override void Play(float fadeDuration)
+  {
+    if (!IsPlaying)
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].bpm = bpm;
+        sequencers[i].Play(fadeDuration);
+      }
+      IsPlaying = true;
+    }
+  }
+
+  /// <summary>
+  /// Stop all connected sequencers.
+  /// </summary>
+  public override void Stop()
+  {
+    if (IsPlaying)
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].Stop();
+      }
+      IsPlaying = false;
+    }
+  }
+
+  /// <summary>
+  /// Stop all connected sequencers.
+  /// </summary>
+  /// <param name="fadeDuration"></param>
+  public override void Stop(float fadeDuration)
+  {
+    if (IsPlaying)
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].Stop(fadeDuration);
+      }
+      IsPlaying = false;
+    }
+  }
+
+  /// <summary>
+  /// Pause/Unpause all connected sequencers.
+  /// </summary>
+  /// <param name="isPaused"></param>
+  public override void Pause(bool isPaused)
+  {
+    if ((IsPlaying && isPaused) || (!IsPlaying && !isPaused))
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].Pause(isPaused);
+      }
+      IsPlaying = !IsPlaying;
+    }
+  }
+
+  /// <summary>
+  /// Pause/Unpause all connected sequencers.
+  /// </summary>
+  /// <param name="isPaused"></param>
+  /// <param name="fadeDuration"></param>
+  public override void Pause(bool isPaused, float fadeDuration)
+  {
+    if ((IsPlaying && isPaused) || (!IsPlaying && !isPaused))
+    {
+      for (int i = 0; i < sequencers.Length; i++)
+      {
+        sequencers[i].Pause(isPaused, fadeDuration);
+      }
+      IsPlaying = !IsPlaying;
+    }
+  }
+
+  /// <summary>
+  /// Mute/Unmute all connected sequencers.
+  /// </summary>
+  /// <param name="isMuted"></param>
+  public override void Mute(bool isMuted)
+  {
+    for (int i = 0; i < sequencers.Length; i++)
+    {
+      sequencers[i].Mute(isMuted);
+    }
+    this.isMuted = isMuted;
+#if UNITY_EDITOR
+    _isMutedOld = this.isMuted;
+#endif
+  }
+
+  /// <summary>
+  /// Mute/Unmute all connected sequencers.
+  /// </summary>
+  /// <param name="isMuted"></param>
+  /// <param name="fadeDuration"></param>
+  public override void Mute(bool isMuted, float fadeDuration)
+  {
+    for (int i = 0; i < sequencers.Length; i++)
+    {
+      sequencers[i].Mute(isMuted, fadeDuration);
+    }
+    this.isMuted = isMuted;
+#if UNITY_EDITOR
+    _isMutedOld = this.isMuted;
+#endif
+  }
+
+  /// <summary>
+  /// Changes default fade in and fade out durations of all connected sequencers.
+  /// </summary>
+  /// <param name="fadeIn"></param>
+  /// <param name="fadeOut"></param>
+  public override void SetFadeDurations(float fadeIn, float fadeOut)
+  {
+    for (int i = 0; i < sequencers.Length; i++)
+    {
+      sequencers[i].SetFadeDurations(fadeIn, fadeOut);
+    }
+  }
+
+  /// <summary>
+  /// Toggle mute state.
+  /// </summary>
+  public override void ToggleMute()
+  {
+    isMuted = !isMuted;
+    Mute(isMuted);
+  }
+
+  /// <summary>
+  /// Set approximate percentage of all connected sequencers.
+  /// Ignores leftover percentage from rounding. Not precise.
+  /// </summary>
+  /// <param name="percentage">Approximate percentage.</param>
+  public override void SetPercentage(double percentage)
+  {
+    for (int i = 0; i < sequencers.Length; i++)
+    {
+      sequencers[i].SetPercentage(percentage);
+    }
+  }
+
+  /// <summary>
+  /// Set Bpm of all connected sequencers.
+  /// </summary>
+  /// <param name="newBpm">Beats per minute.</param>
+  public override void SetBpm(int newBpm)
+  {
+    if (newBpm < 10) newBpm = 10;
+    bpm = newBpm;
+    for (int i = 0; i < sequencers.Length; i++)
+    {
+      sequencers[i].bpm = newBpm;
     }
 
-    #endregion
-
-    #region Enumerations
-
-    #endregion
-
-    #region Methods
-
-    public override void OnAwake()
-    {
 #if UNITY_EDITOR
+    _oldBpm = bpm;
+#endif
+  }
+
+
+
+#if UNITY_EDITOR
+
+  private bool _isMutedOld;
+  private int _oldBpm;
+
+
+  /// <summary>
+  /// Check and update when options are changed from editor.
+  /// </summary>
+  void LateUpdate()
+  {
+    if (IsReady)
+    {
+      if (_isMutedOld != isMuted)
+      {
+        print("Driver changed " + _isMutedOld + ":" + isMuted);
         _isMutedOld = isMuted;
-        _oldBpm = bpm;
-#endif
-        StartCoroutine(Init());
-    }
-
-    /// <summary>
-    /// Wait until all connected sequencers are ready.
-    /// </summary>
-    /// <returns></returns>
-    private IEnumerator Init()
-    {
-        while (!IsReady) yield return null;
-        if (playWhenReady)
-        {
-            Play();
-        }
-        OnReady();
-    }
-
-    /// <summary>
-    /// Play all connected sequencers.
-    /// </summary>
-    public override void Play()
-    {
-        if (!IsPlaying)
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].bpm = bpm;
-                sequencers[i].Play();
-            }
-            IsPlaying = true;
-        }
-    }
-
-    /// <summary>
-    /// Play all connected sequencers from specified percentage.
-    /// </summary>
-    /// <param name="perc">Approximate percentage.</param>
-    public override void Play(double perc)
-    {
-        SetPercentage(perc);
-        Play();
-    }
-
-    /// <summary>
-    /// Play all connected sequencers. 
-    /// </summary>
-    /// <param name="fadeDuration"></param>
-    public override void Play(float fadeDuration)
-    {
-        if (!IsPlaying)
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].bpm = bpm;
-                sequencers[i].Play(fadeDuration);
-            }
-            IsPlaying = true;
-        }
-    }
-
-    /// <summary>
-    /// Stop all connected sequencers.
-    /// </summary>
-    public override void Stop()
-    {
-        if (IsPlaying)
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].Stop();
-            }
-            IsPlaying = false;
-        }
-    }
-
-    /// <summary>
-    /// Stop all connected sequencers.
-    /// </summary>
-    /// <param name="fadeDuration"></param>
-    public override void Stop(float fadeDuration)
-    {
-        if (IsPlaying)
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].Stop(fadeDuration);
-            }
-            IsPlaying = false;
-        }
-    }
-
-    /// <summary>
-    /// Pause/Unpause all connected sequencers.
-    /// </summary>
-    /// <param name="isPaused"></param>
-    public override void Pause(bool isPaused)
-    {
-        if ((IsPlaying && isPaused) || (!IsPlaying && !isPaused))
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].Pause(isPaused);
-            }
-            IsPlaying = !IsPlaying;
-        }
-    }
-
-    /// <summary>
-    /// Pause/Unpause all connected sequencers.
-    /// </summary>
-    /// <param name="isPaused"></param>
-    /// <param name="fadeDuration"></param>
-    public override void Pause(bool isPaused, float fadeDuration)
-    {
-        if ((IsPlaying && isPaused) || (!IsPlaying && !isPaused))
-        {
-            for (int i = 0; i < sequencers.Length; i++)
-            {
-                sequencers[i].Pause(isPaused, fadeDuration);
-            }
-            IsPlaying = !IsPlaying;
-        }
-    }
-
-    /// <summary>
-    /// Mute/Unmute all connected sequencers.
-    /// </summary>
-    /// <param name="isMuted"></param>
-    public override void Mute(bool isMuted)
-    {
-        for (int i = 0; i < sequencers.Length; i++)
-        {
-            sequencers[i].Mute(isMuted);
-        }
-        this.isMuted = isMuted;
-#if UNITY_EDITOR
-        _isMutedOld = this.isMuted;
-#endif
-    }
-
-    /// <summary>
-    /// Mute/Unmute all connected sequencers.
-    /// </summary>
-    /// <param name="isMuted"></param>
-    /// <param name="fadeDuration"></param>
-    public override void Mute(bool isMuted, float fadeDuration)
-    {
-        for (int i = 0; i < sequencers.Length; i++)
-        {
-            sequencers[i].Mute(isMuted, fadeDuration);
-        }
-        this.isMuted = isMuted;
-#if UNITY_EDITOR
-        _isMutedOld = this.isMuted;
-#endif
-    }
-
-    /// <summary>
-    /// Changes default fade in and fade out durations of all connected sequencers.
-    /// </summary>
-    /// <param name="fadeIn"></param>
-    /// <param name="fadeOut"></param>
-    public override void SetFadeDurations(float fadeIn, float fadeOut)
-    {
-        for (int i = 0; i < sequencers.Length; i++)
-        {
-            sequencers[i].SetFadeDurations(fadeIn, fadeOut);
-        }
-    }
-
-    /// <summary>
-    /// Toggle mute state.
-    /// </summary>
-    public override void ToggleMute()
-    {
-        isMuted = !isMuted;
         Mute(isMuted);
-    }
-
-    /// <summary>
-    /// Set approximate percentage of all connected sequencers.
-    /// Ignores leftover percentage from rounding. Not precise.
-    /// </summary>
-    /// <param name="percentage">Approximate percentage.</param>
-    public override void SetPercentage(double percentage)
-    {
-        for (int i = 0; i < sequencers.Length; i++)
-        {
-            sequencers[i].SetPercentage(percentage);
-        }
-    }
-
-    /// <summary>
-    /// Set Bpm of all connected sequencers.
-    /// </summary>
-    /// <param name="newBpm">Beats per minute.</param>
-    public override void SetBpm(int newBpm)
-    {
-        if (newBpm < 10) newBpm = 10;
-        bpm = newBpm;
-        for (int i = 0; i < sequencers.Length; i++)
-        {
-            sequencers[i].bpm = newBpm;
-        }
-
-#if UNITY_EDITOR
+      }
+      if (_oldBpm != bpm)
+      {
         _oldBpm = bpm;
-#endif
+        SetBpm(bpm);
+      }
     }
+  }
+
+  [MenuItem("GameObject/Sequencer/Sequencer Driver", false, 10)]
+  static void CreateSequencerController(MenuCommand menuCommand)
+  {
+    // Create a custom game object
+    GameObject go = new GameObject("Sequencer Driver");
+    go.AddComponent<SequencerDriver>();
+    GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
+    // Register the creation in the undo system
+    Undo.RegisterCreatedObjectUndo(go, "Create " + go.name);
+    Selection.activeObject = go;
+  }
 
 
-#if UNITY_EDITOR
-
-    private bool _isMutedOld;
-    private int _oldBpm;
-
-    /// <summary>
-    /// Check and update when options are changed from editor.
-    /// </summary>
-    void LateUpdate()
-    {
-        if (IsReady)
-        {
-            if (_isMutedOld != isMuted)
-            {
-                print("Driver changed " + _isMutedOld + ":" + isMuted);
-                _isMutedOld = isMuted;
-                Mute(isMuted);
-            }
-            if (_oldBpm != bpm)
-            {
-                _oldBpm = bpm;
-                SetBpm(bpm);
-            }
-        }
-    }
-
-    [MenuItem("GameObject/Sequencer/Sequencer Driver", false, 10)]
-    static void CreateSequencerController(MenuCommand menuCommand)
-    {
-        // Create a custom game object
-        GameObject go = new GameObject("Sequencer Driver");
-        go.AddComponent<SequencerDriver>();
-        GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
-        // Register the creation in the undo system
-        Undo.RegisterCreatedObjectUndo(go, "Create " + go.name);
-        Selection.activeObject = go;
-    }
 #endif
 
-    #endregion
+  #endregion
 
-    #region Structs
+  #region Structs
 
-    #endregion
+  #endregion
 
-    #region Classes
+  #region Classes
 
-    #endregion
+  #endregion
 }
