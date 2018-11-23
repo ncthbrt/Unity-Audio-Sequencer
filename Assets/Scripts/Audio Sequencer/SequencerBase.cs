@@ -121,8 +121,6 @@ public abstract class SequencerBase : MonoBehaviour
 
   public abstract void Play();
 
-  public abstract void Play(double newPercentage);
-
   public abstract void Play(float fadeDuration);
 
   public abstract void Stop();
@@ -130,7 +128,6 @@ public abstract class SequencerBase : MonoBehaviour
   public abstract void Stop(float fadeDuration);
 
   public abstract void SetBpm(int newBpm);
-  public abstract void SetPercentage(double newPercentage);
 
   public abstract void Pause(bool isPaused);
 

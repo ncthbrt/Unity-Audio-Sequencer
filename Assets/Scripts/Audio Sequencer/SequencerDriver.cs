@@ -120,15 +120,6 @@ internal class SequencerDriver : SequencerBase
     }
   }
 
-  /// <summary>
-  /// Play all connected sequencers from specified percentage.
-  /// </summary>
-  /// <param name="perc">Approximate percentage.</param>
-  public override void Play(double perc)
-  {
-    SetPercentage(perc);
-    Play();
-  }
 
   /// <summary>
   /// Play all connected sequencers. 
@@ -266,18 +257,7 @@ internal class SequencerDriver : SequencerBase
     Mute(isMuted);
   }
 
-  /// <summary>
-  /// Set approximate percentage of all connected sequencers.
-  /// Ignores leftover percentage from rounding. Not precise.
-  /// </summary>
-  /// <param name="percentage">Approximate percentage.</param>
-  public override void SetPercentage(double percentage)
-  {
-    for (int i = 0; i < sequencers.Length; i++)
-    {
-      sequencers[i].SetPercentage(percentage);
-    }
-  }
+
 
   /// <summary>
   /// Set Bpm of all connected sequencers.

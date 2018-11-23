@@ -121,15 +121,7 @@ public class SequencerGroup : SequencerBase
     }
   }
 
-  /// <summary>
-  /// Play all connected sequencers from specified percentage.
-  /// </summary>
-  /// <param name="perc">Approximate percentage.</param>
-  public override void Play(double perc)
-  {
-    SetPercentage(perc);
-    Play();
-  }
+
 
   /// <summary>
   /// Play all connected sequencers.
@@ -267,19 +259,6 @@ public class SequencerGroup : SequencerBase
   {
     isMuted = !isMuted;
     Mute(isMuted);
-  }
-
-  /// <summary>
-  /// Set approximate percentage of all connected sequencers.
-  /// Ignores leftover percentage from rounding. Not precise.
-  /// </summary>
-  /// <param name="percentage">Approximate percentage.</param>
-  public override void SetPercentage(double percentage)
-  {
-    for (int i = 0; i < _sequencers.Count; i++)
-    {
-      _sequencers[i].SetPercentage(percentage);
-    }
   }
 
 

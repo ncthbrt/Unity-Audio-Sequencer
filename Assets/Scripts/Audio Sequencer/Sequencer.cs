@@ -47,7 +47,7 @@ internal class Sequencer : SequencerBase
 {
   #region Delegates
 
-  public delegate void OnStep(int currentBeat, int numberOfBeats);
+  public delegate void OnStep(Sequence sequence);
 
   #endregion
 
@@ -98,17 +98,10 @@ internal class Sequencer : SequencerBase
     get { return _clipData != null; }
   }
 
-  /// <summary>
-  /// Current step.
-  /// </summary>
-  public int CurrentStep
-  {
-    get { return _sequence.CurrentStep; }
-  }
 
-  /// <summary>
-  /// Signature Lenght
-  /// </summary>
+  // /// <summary>
+  // /// Signature Lenght
+  // /// </summary>
   public int NumberOfSteps
   {
     get { return _sequence.Length; }
@@ -260,16 +253,6 @@ internal class Sequencer : SequencerBase
   /// Remaining any step events to be fired.
   /// </summary>
   private int _fireAnyStepEvent;
-
-  /// <summary>
-  /// Progress used to calculate approximate percentage.
-  /// </summary>
-  private double _progress;
-
-  /// <summary>
-  /// Temporary variable to set percentage on Audio Thread.
-  /// </summary>
-  private double _newPercentage = -1;
 
   /// <summary>
   /// Initial volume value to fade in.
@@ -439,15 +422,6 @@ internal class Sequencer : SequencerBase
     Play(fadeInDuration);
   }
 
-  /// <summary>
-  /// Start playing from specified percentage.
-  /// </summary>
-  /// <param name="newPercentage"></param>
-  public override void Play(double newPercentage)
-  {
-    SetPercentage(newPercentage);
-    Play();
-  }
 
   /// <summary>
   /// Start playing.
@@ -515,7 +489,7 @@ internal class Sequencer : SequencerBase
     _audioSource.Stop();
     _clipData = null;
     _index = 0;
-    _sequence.CurrentStep = 0;
+    _sequence.Reset();
     if (_activeBackBuffers != null)
     {
       _activeBackBuffers.Clear();
@@ -597,42 +571,7 @@ internal class Sequencer : SequencerBase
     _volumeAfterFade = 0;
   }
 
-  /// <summary>
-  /// Get approximate percentage.
-  /// </summary>
-  /// <returns>Approximate percentage.</returns>
-  public double GetPercentage()
-  {
-    double samplesTotal = _sampleRate * 60.0F / bpm * 4.0F;
-    return _progress / samplesTotal;
-  }
 
-  /// <summary>
-  /// Set approximate percentage.
-  /// Ignores leftover percentage from rounding. Not precise.
-  /// </summary>
-  /// <param name="percentage">Approximate percentage.</param>
-  public override void SetPercentage(double percentage)
-  {
-    _newPercentage = percentage;
-  }
-
-  /// <summary>
-  /// Updates percentage of the sequence on Audio Thread.
-  /// </summary>
-  private void UpdatePercentage()
-  {
-    _index = 0;
-    if (_activeBackBuffers != null) _activeBackBuffers.Clear();
-
-    double samplesTotal = _sampleRate * 60.0F / bpm * 4.0F;
-    double samplesPerTick = samplesTotal / NumberOfSteps;
-    double newSamplePos = samplesTotal * _newPercentage;
-    double currentTickDouble = newSamplePos / samplesPerTick;
-    _sequence.CurrentStep = (int)Math.Round(currentTickDouble, MidpointRounding.ToEven);
-    if (log) print("Set Percentage: " + _sequence.CurrentStep + " (%" + _newPercentage + ")");
-    _newPercentage = -1;
-  }
 
   private void Update()
   {
@@ -695,11 +634,6 @@ internal class Sequencer : SequencerBase
     if (!IsReady || !_isPlaying) return;
     double samplesPerTick = _sampleRate * 60.0F / bpm * 4.0F / NumberOfSteps;
     double sample = AudioSettings.dspTime * _sampleRate;
-    if (_newPercentage > -1)
-    {
-      UpdatePercentage();
-      return;
-    }
 
     if (isMuted)
     {
@@ -711,9 +645,8 @@ internal class Sequencer : SequencerBase
         {
           dataLeft = (int)(newSample - _nextTick);
           _nextTick += samplesPerTick;
-          if (++_sequence.CurrentStep > NumberOfSteps) _sequence.CurrentStep = 1;
-          _progress = _sequence.CurrentStep * samplesPerTick;
-          if (_sequence[_sequence.CurrentStep - 1])
+          _sequence.IncrementStep();
+          if (_sequence.ShouldTrigger)
           {
             _index = 0;
             if (onBeat != null) _fireBeatEvent++;
@@ -780,26 +713,20 @@ internal class Sequencer : SequencerBase
           }
         }
 
-        _progress = _sequence.CurrentStep * samplesPerTick + dataIndex;
-
         if (sample + dataIndex >= _nextTick)
         {
           //Refactored to increase readability.
           AddToBackBuffer(bufferChannels);
 
           _nextTick += samplesPerTick;
-          if (++_sequence.CurrentStep > NumberOfSteps)
-          {
-            _sequence.CurrentStep = 1;
-          }
-          _progress = _sequence.CurrentStep * samplesPerTick;
-          if (_sequence[_sequence.CurrentStep - 1])
+          _sequence.IncrementStep();
+          if (_sequence.ShouldTrigger)
           {
             _index = 0;
             if (onBeat != null)
             {
               if (_onBeatEventQueue == null) _onBeatEventQueue = new Queue<Action>();
-              _onBeatEventQueue.Enqueue(() => onBeat(_sequence.CurrentStep, NumberOfSteps));
+              _onBeatEventQueue.Enqueue(() => onBeat(_sequence));
             }
           }
           else
@@ -809,9 +736,9 @@ internal class Sequencer : SequencerBase
           if (onAnyStep != null)
           {
             if (_onAnyStepEventQueue == null) _onAnyStepEventQueue = new Queue<Action>();
-            _onAnyStepEventQueue.Enqueue(() => onAnyStep(_sequence.CurrentStep, NumberOfSteps));
+            _onAnyStepEventQueue.Enqueue(() => onAnyStep(_sequence));
           }
-          if (log) Debug.Log("Tick: " + _sequence.CurrentStep + " (%" + GetPercentage() + ")");
+          if (log) Debug.Log("Tick: " + _sequence.CurrentStep);
         }
       }
     }

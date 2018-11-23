@@ -93,15 +93,6 @@ internal class EventSequencer : SequencerBase
   }
 
   /// <summary>
-  /// Current step.
-  /// </summary>
-  public int CurrentStep
-  {
-    get { return _sequence.CurrentStep; }
-    set { _sequence.CurrentStep = value; }
-  }
-
-  /// <summary>
   /// Signature Lenght
   /// </summary>
   public int NumberOfSteps
@@ -169,10 +160,6 @@ internal class EventSequencer : SequencerBase
   /// </summary>
   private double _sampleRate;
 
-  /// <summary>
-  /// Current index of clip data.
-  /// </summary>
-  private int _index;
 
   /// <summary>
   /// Remaining beat events to be fired.
@@ -184,15 +171,6 @@ internal class EventSequencer : SequencerBase
   /// </summary>
   private int _fireAnyStepEvent;
 
-  /// <summary>
-  /// Progress used to calculate approximate percentage.
-  /// </summary>
-  private double _progress;
-
-  /// <summary>
-  /// Temporary variable to set percentage on Audio Thread.
-  /// </summary>
-  private double _newPercentage = -1;
 
   /// <summary>
   /// Initial volume value to fade in.
@@ -326,16 +304,6 @@ internal class EventSequencer : SequencerBase
   }
 
   /// <summary>
-  /// Start playing from specified percentage.
-  /// </summary>
-  /// <param name="newPercentage"></param>
-  public override void Play(double newPercentage)
-  {
-    SetPercentage(newPercentage);
-    Play();
-  }
-
-  /// <summary>
   /// Start playing.
   /// </summary>
   /// <param name="fadeDuration"></param>
@@ -393,8 +361,7 @@ internal class EventSequencer : SequencerBase
   {
     _isPlaying = false;
     _audioSource.Stop();
-    _index = 0;
-    _sequence.CurrentStep = 0;
+    _sequence.Reset();
   }
 
   /// <summary>
@@ -471,40 +438,7 @@ internal class EventSequencer : SequencerBase
     _volumeAfterFade = 0;
   }
 
-  /// <summary>
-  /// Get approximate percentage.
-  /// </summary>
-  /// <returns>Approximate percentage.</returns>
-  public double GetPercentage()
-  {
-    double samplesTotal = _sampleRate * 60.0F / bpm * 4.0F;
-    return _progress / samplesTotal;
-  }
 
-  /// <summary>
-  /// Set approximate percentage.
-  /// Ignores leftover percentage from rounding. Not precise.
-  /// </summary>
-  /// <param name="percentage">Approximate percentage.</param>
-  public override void SetPercentage(double percentage)
-  {
-    _newPercentage = percentage;
-  }
-
-  /// <summary>
-  /// Updates percentage of the sequence on Audio Thread.
-  /// </summary>
-  private void UpdatePercentage()
-  {
-    _index = 0;
-    double samplesTotal = _sampleRate * 60.0F / bpm * 4.0F;
-    double samplesPerTick = samplesTotal / NumberOfSteps;
-    double newSamplePos = samplesTotal * _newPercentage;
-    double currentTickDouble = newSamplePos / samplesPerTick;
-    _sequence.CurrentStep = (int)Math.Round(currentTickDouble, MidpointRounding.ToEven);
-    if (log) print("Set Percentage: " + CurrentStep + " (%" + _newPercentage + ")");
-    _newPercentage = -1;
-  }
 
   private void Update()
   {
@@ -567,11 +501,6 @@ internal class EventSequencer : SequencerBase
     if (!IsReady || !_isPlaying) return;
     double samplesPerTick = _sampleRate * 60.0F / bpm * 4.0F / NumberOfSteps;
     double sample = AudioSettings.dspTime * _sampleRate;
-    if (_newPercentage > -1)
-    {
-      UpdatePercentage();
-      return;
-    }
     int dataLeft = bufferData.Length;
     while (dataLeft > 0)
     {
@@ -580,15 +509,10 @@ internal class EventSequencer : SequencerBase
       {
         dataLeft = (int)(newSample - _nextTick);
         _nextTick += samplesPerTick;
-        if (++CurrentStep > NumberOfSteps)
-        {
-          CurrentStep = 1;
-        }
-        _progress = CurrentStep * samplesPerTick;
+        _sequence.IncrementStep();
 
-        if (_sequence[CurrentStep - 1])
+        if (_sequence.ShouldTrigger)
         {
-          _index = 0;
           if (onBeat != null)
           {
             if (!isMuted)
@@ -597,19 +521,14 @@ internal class EventSequencer : SequencerBase
               float volume = _volume;
               _onBeatEventQueue.Enqueue(() =>
               {
-                onBeat.Invoke(CurrentStep, NumberOfSteps, volume);
+                onBeat.Invoke(_sequence);
               });
             }
             else
             {
-              _index = 0;
               _fireBeatEvent++;
             }
           }
-        }
-        else
-        {
-          _index = -1;
         }
 
 
@@ -621,7 +540,7 @@ internal class EventSequencer : SequencerBase
             float volume = _volume;
             _onAnyStepEventQueue.Enqueue(() =>
             {
-              onAnyStep.Invoke(CurrentStep, NumberOfSteps, volume);
+              onAnyStep.Invoke(_sequence);
             });
           }
           else

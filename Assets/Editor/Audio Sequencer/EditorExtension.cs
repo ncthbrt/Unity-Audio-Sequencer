@@ -65,24 +65,34 @@ public class SequenceEditor : Editor
 {
 
   SerializedProperty sequence;
+  SerializedProperty sequenceSequence;
   SerializedProperty currentStep;
+  SerializedProperty currentSequence;
 
   void OnEnable()
   {
     sequence = serializedObject.FindProperty("sequence");
+    sequenceSequence = serializedObject.FindProperty("sequenceSequence");
     currentStep = serializedObject.FindProperty("currentStep");
+    currentSequence = serializedObject.FindProperty("currentSequence");
   }
   public override void OnInspectorGUI()
   {
     serializedObject.Update();
+    EditorGUILayout.BeginVertical();
+    var currentBeat = this.currentStep.intValue;
+    var currentSequence = this.currentSequence.intValue;
+    var sequenceIsActive = !Application.isPlaying || this.sequenceSequence.arraySize == 0 || this.sequenceSequence.GetArrayElementAtIndex(currentSequence).boolValue;
+    var beatIsActive = Application.isPlaying && currentBeat < this.sequence.arraySize && this.sequence.GetArrayElementAtIndex(currentBeat).boolValue;
+    var prev = GUI.color;
+    GUI.color = beatIsActive ? Color.green : prev;
     sequence.arraySize = EditorGUILayout.IntSlider("Sequence Length", sequence.arraySize, 1, 128);
     int j = 0;
-    var currentBeat = this.currentStep.intValue;
-
-    EditorGUILayout.BeginVertical();
+    GUI.color = prev;
     EditorGUILayout.BeginHorizontal();
     var buttonsPerRow = 4;
-    var prev = GUI.color;
+
+    EditorGUI.BeginDisabledGroup(!sequenceIsActive);
     for (var i = 0; i < sequence.arraySize; ++i)
     {
       var item = sequence.GetArrayElementAtIndex(i);
@@ -100,15 +110,56 @@ public class SequenceEditor : Editor
       if (j >= buttonsPerRow - 1)
       {
         EditorGUILayout.EndHorizontal();
-        EditorGUILayout.EndVertical();
         j = 0;
-        EditorGUILayout.BeginVertical();
         EditorGUILayout.BeginHorizontal();
       }
     }
+    GUI.color = prev;
+    EditorGUI.EndDisabledGroup();
     EditorGUILayout.EndHorizontal();
+    EditorGUILayout.Space();
+
+    if (sequenceSequence.arraySize > 0)
+    {
+      GUI.color = sequenceIsActive && Application.isPlaying ? Color.blue : prev;
+      sequenceSequence.arraySize = EditorGUILayout.IntSlider("Sequence Sequence Length", sequenceSequence.arraySize, 0, 128);
+      GUI.color = prev;
+      EditorGUILayout.BeginHorizontal();
+      for (var i = 0; i < sequenceSequence.arraySize; ++i)
+      {
+        var item = sequenceSequence.GetArrayElementAtIndex(i);
+        if (i == currentSequence)
+        {
+          GUI.color = Color.blue;
+          item.boolValue = EditorGUILayout.Toggle(item.boolValue, "Button");
+        }
+        else
+        {
+          GUI.color = prev;
+          item.boolValue = EditorGUILayout.Toggle(item.boolValue, "Button");
+        }
+
+        if (j >= buttonsPerRow - 1)
+        {
+          EditorGUILayout.EndHorizontal();
+          j = 0;
+          EditorGUILayout.BeginHorizontal();
+        }
+      }
+      EditorGUILayout.EndHorizontal();
+    }
+    else
+    {
+      var sequence = EditorGUILayout.Toggle("Sequence Sequence?", false);
+      if (sequence)
+      {
+        sequenceSequence.arraySize = 1;
+        sequenceSequence.GetArrayElementAtIndex(0).boolValue = false;
+      }
+    }
     EditorGUILayout.EndVertical();
     serializedObject.ApplyModifiedProperties();
+
   }
 
 }

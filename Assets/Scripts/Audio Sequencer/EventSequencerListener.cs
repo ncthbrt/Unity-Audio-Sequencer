@@ -1,7 +1,7 @@
 using UnityEngine.Events;
 
 [System.Serializable]
-public class EventSequencerListener : UnityEvent<int, int, float>
+public class EventSequencerListener : UnityEvent<Sequence>
 {
 
 }
